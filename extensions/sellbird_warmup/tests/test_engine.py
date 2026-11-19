@@ -88,3 +88,27 @@ def test_bridge_reads_health(tmp_path):
     h = mailbox_health("A@example.com", db)
     assert h["sent_14d"] == 10 and h["spam_14d"] == 1 and h["started"] == TODAY
     assert len(pool_health(db)) == 1 and mailbox_health("b@example.com", db) is None
+
+
+def test_provider_placement_and_api(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import sellbird_warmup.plugin as plugin, sellbird_warmup.bridge as bridge
+    s, ts = mk(2, spam_at=("m1@example.com",))
+    for _ in range(3):
+        asyncio.run(run_cycle(s, ts, today=TODAY, rng=random.Random(7)))
+    h = health(s, "m0@example.com", today=TODAY)
+    assert h["by_provider"] and h["by_provider"][0]["provider"] == "example.com"
+    from sellbird_warmup.engine import provider_of
+    assert provider_of("x@Gmail.com") == "google" and provider_of("x@outlook.fr") == "microsoft"
+    monkeypatch.setattr(plugin, "DIR", tmp_path)
+    monkeypatch.setattr(bridge, "DB", tmp_path / "warmup.db")
+    st = plugin._store()
+    st.upsert_mailbox(address="a@example.com", display_name="A", started=TODAY.isoformat(), smtp_host="h",
+                      imap_host="h", username="u", password_env="X")
+    st.save_reputation("a@example.com", [("SPF", "ok", "found")])
+    app = FastAPI(); app.include_router(plugin._router())
+    c = TestClient(app)
+    assert c.get("/api/warmpool/reputation").json()["a@example.com"][0]["name"] == "SPF"
+    assert c.post("/api/warmpool/a@example.com/pause").json() == {"ok": True}
+    assert next(r for r in plugin._store().mailboxes())["paused"] == 1

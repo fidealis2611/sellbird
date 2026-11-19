@@ -2869,7 +2869,7 @@ async def get_runs_api():
 WEB_DIR = (Path(__file__).resolve().parent / "web")
 
 
-TEXT_TYPES = {".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml"}
+TEXT_TYPES = {".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".html": "text/html"}
 BINARY_TYPES = {".woff2": "font/woff2", ".woff": "font/woff", ".png": "image/png"}
 
 

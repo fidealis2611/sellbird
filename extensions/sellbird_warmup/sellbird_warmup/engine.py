@@ -19,6 +19,16 @@ SPAM_PAUSE_RATE = 0.05    # pause a mailbox whose recent spam rate passes this
 MIN_SAMPLE = 20           # messages needed before the spam rate can pause anything
 
 
+def provider_of(address: str) -> str:
+    """Which mailbox provider received the mail: Google, Microsoft, or the domain itself."""
+    d = address.rsplit("@", 1)[-1].lower()
+    if d in ("gmail.com", "googlemail.com"):
+        return "google"
+    if d in ("outlook.com", "hotmail.com", "live.com", "outlook.fr", "hotmail.fr", "msn.com"):
+        return "microsoft"
+    return d
+
+
 def _ok_to_send(row) -> bool:
     return not row["paused"]
 
@@ -49,6 +59,7 @@ async def run_cycle(store: Store, transports: dict[str, Transport], *, ramp: Ram
             store.bump(addr, today, received=1)
             # placement is credited to the sender: where did ITS mail land at the peer?
             store.bump(it.from_email, today, **({"in_spam": 1} if it.folder == "spam" else {"in_inbox": 1}))
+            store.place(it.from_email, provider_of(addr), today, it.folder == "spam")
             try:
                 if it.folder == "spam":
                     await t.rescue(it)
@@ -109,4 +120,5 @@ def health(store: Store, address: str, ramp: Ramp = Ramp(), today: date | None =
     seen = tot["i"] + tot["p"]
     return {"address": address, "day": day, "warmed": ramp.finished(day),
             "paused": bool(row["paused"]), "sent_14d": tot["s"], "replied_14d": tot["r"],
-            "spam_14d": tot["p"], "spam_rate": round(tot["p"] / seen, 4) if seen else None, "errors_14d": tot["e"]}
+            "spam_14d": tot["p"], "spam_rate": round(tot["p"] / seen, 4) if seen else None, "errors_14d": tot["e"],
+            "by_provider": store.by_provider(address, today - timedelta(days=13))}

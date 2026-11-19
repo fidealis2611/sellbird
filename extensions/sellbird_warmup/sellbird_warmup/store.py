@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS day (
   in_spam INTEGER NOT NULL DEFAULT 0, rescued INTEGER NOT NULL DEFAULT 0,
   replied INTEGER NOT NULL DEFAULT 0, errors INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (address, day));
+CREATE TABLE IF NOT EXISTS placement (sender TEXT NOT NULL, provider TEXT NOT NULL, day TEXT NOT NULL,
+  inbox INTEGER NOT NULL DEFAULT 0, spam INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sender, provider, day));
+CREATE TABLE IF NOT EXISTS reputation (address TEXT NOT NULL, at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', PRIMARY KEY (address, name));
 CREATE TABLE IF NOT EXISTS seen (address TEXT NOT NULL, message_id TEXT NOT NULL,
   PRIMARY KEY (address, message_id));
 CREATE TABLE IF NOT EXISTS event (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -76,6 +80,28 @@ class Store:
             "COALESCE(SUM(replied),0) r, COALESCE(SUM(errors),0) e FROM day WHERE address=? AND day>=?",
             (address, since.isoformat())).fetchone()
         return dict(r)
+
+    def place(self, sender: str, provider: str, day: date, spam: bool) -> None:
+        self.db.execute("INSERT OR IGNORE INTO placement(sender, provider, day) VALUES(?,?,?)",
+                        (sender, provider, day.isoformat()))
+        self.db.execute(f"UPDATE placement SET {'spam' if spam else 'inbox'}={'spam' if spam else 'inbox'}+1 "
+                        "WHERE sender=? AND provider=? AND day=?", (sender, provider, day.isoformat()))
+        self.db.commit()
+
+    def by_provider(self, sender: str, since: date) -> list[dict]:
+        return [dict(r) for r in self.db.execute(
+            "SELECT provider, SUM(inbox) inbox, SUM(spam) spam FROM placement WHERE sender=? AND day>=? "
+            "GROUP BY provider ORDER BY provider", (sender, since.isoformat()))]
+
+    def save_reputation(self, address: str, checks: list[tuple[str, str, str]]) -> None:
+        self.db.execute("DELETE FROM reputation WHERE address=?", (address,))
+        self.db.executemany("INSERT INTO reputation(address, name, status, detail) VALUES(?,?,?,?)",
+                            [(address, n, s, d[:300]) for n, s, d in checks])
+        self.db.commit()
+
+    def reputation(self, address: str) -> list[dict]:
+        return [dict(r) for r in self.db.execute(
+            "SELECT name, status, detail, at FROM reputation WHERE address=? ORDER BY name", (address,))]
 
     def mark_seen(self, address: str, message_id: str) -> bool:
         """True the first time; False if already handled."""

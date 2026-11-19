@@ -31,6 +31,7 @@ def _configure(parser):
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("status", help="warmup day, spam rate and answers per mailbox")
     sub.add_parser("run", help="run one cycle now")
+    sub.add_parser("check", help="SPF, DKIM, DMARC, blocklists and sending-IP reputation per mailbox")
     p = sub.add_parser("pause"); p.add_argument("address")
     p = sub.add_parser("resume"); p.add_argument("address")
 
@@ -42,6 +43,12 @@ def _configure(parser):
         if args.action == "status":
             for r in store.mailboxes():
                 print(json.dumps(health(store, r["address"]), ensure_ascii=False))
+        elif args.action == "check":
+            from .reputation import check_all
+            print(f"checked {await check_all(store)} mailbox(es)")
+            for r in store.mailboxes():
+                for c in store.reputation(r["address"]):
+                    print(f"{r['address']}  {c['status']:<5} {c['name']}: {c['detail']}")
         elif args.action == "run":
             print(await run_cycle(store, build_transports(store)))
         else:
@@ -58,6 +65,18 @@ def _router():
     @r.get("/api/warmpool")
     async def status():
         return {"mailboxes": pool_health()}
+    @r.get("/api/warmpool/reputation")
+    async def reputation():
+        from .store import Store as S
+        st = S(DIR / "warmup.db")
+        return {a["address"]: st.reputation(a["address"]) for a in st.mailboxes()}
+
+    @r.post("/api/warmpool/{address}/pause")
+    async def pause(address: str, paused: bool = True):
+        S2 = _store()
+        S2.set_paused(address.lower(), paused)
+        return {"ok": True}
+
     return r
 
 
