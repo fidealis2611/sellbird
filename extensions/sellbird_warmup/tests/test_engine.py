@@ -76,3 +76,15 @@ def test_duplicate_messages_counted_once():
     before = s.today("m1@example.com", TODAY)["received"] if s.today("m1@example.com", TODAY) else 0
     asyncio.run(run_cycle(s, ts, today=TODAY, rng=random.Random(5), per_cycle=0))
     assert s.today("m1@example.com", TODAY)["received"] - before == 1
+
+
+def test_bridge_reads_health(tmp_path):
+    from sellbird_warmup.bridge import mailbox_health, pool_health
+    db = tmp_path / "w.db"
+    s = Store(db)
+    s.upsert_mailbox(address="a@example.com", display_name="A", started=TODAY.isoformat(), smtp_host="h",
+                     imap_host="h", username="u", password_env="X")
+    s.bump("a@example.com", date.today(), sent=10, in_spam=1, in_inbox=9)
+    h = mailbox_health("A@example.com", db)
+    assert h["sent_14d"] == 10 and h["spam_14d"] == 1 and h["started"] == TODAY
+    assert len(pool_health(db)) == 1 and mailbox_health("b@example.com", db) is None

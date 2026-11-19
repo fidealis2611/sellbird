@@ -109,4 +109,4 @@ def health(store: Store, address: str, ramp: Ramp = Ramp(), today: date | None =
     seen = tot["i"] + tot["p"]
     return {"address": address, "day": day, "warmed": ramp.finished(day),
             "paused": bool(row["paused"]), "sent_14d": tot["s"], "replied_14d": tot["r"],
-            "spam_rate": round(tot["p"] / seen, 4) if seen else None, "errors_14d": tot["e"]}
+            "spam_14d": tot["p"], "spam_rate": round(tot["p"] / seen, 4) if seen else None, "errors_14d": tot["e"]}

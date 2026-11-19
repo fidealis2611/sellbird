@@ -283,11 +283,25 @@ def describe_status(health: MailboxHealth | None, error: str, choice: str) -> st
     return {"other": "using another warmup service"}.get(choice, "not set up")
 
 
+def _own_health(address: str) -> MailboxHealth | None:
+    """The self-hosted warmup service's view (extensions/sellbird_warmup), if installed
+    and the mailbox is in its pool. None otherwise."""
+    try:
+        from sellbird_warmup.bridge import mailbox_health
+    except ImportError:
+        return None
+    h = mailbox_health(address)
+    if h is None:
+        return None
+    return MailboxHealth(address=address, found=True, warming=not h["warmed"] and not h["paused"],
+                         started_on=h["started"], sent=h["sent_14d"], spam=h["spam_14d"])
+
+
 async def current_health(address: str) -> tuple[MailboxHealth | None, str]:
     """(health, "") when connected, (None, error) when TrulyInbox failed, (None, "") when no key."""
     key, workspace = key_from_env()
     if not key:
-        return None, ""
+        return _own_health(address), ""
     try:
         return await TrulyInbox(key, workspace).mailbox_health(address), ""
     except TrulyInboxError as e:

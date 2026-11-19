@@ -50,6 +50,18 @@ def _configure(parser):
     return run
 
 
+def _router():
+    from fastapi import APIRouter
+    from .bridge import pool_health
+    r = APIRouter()
+
+    @r.get("/api/warmpool")
+    async def status():
+        return {"mailboxes": pool_health()}
+    return r
+
+
 def install(registry) -> None:
+    registry.add_router(_router())
     registry.add_tick_step("warmup.cycle", tick)
     registry.add_cli_command("warmpool", _configure, help="self-hosted mailbox warmup")
