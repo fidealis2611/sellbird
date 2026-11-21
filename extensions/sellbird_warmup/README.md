@@ -12,13 +12,13 @@ marquage important, réponses automatiques, taux de spam par boîte, pause autom
 ## Configurer : data/warmup/pool.yaml (les mots de passe restent dans .env)
 
     mailboxes:
-      - address: contact@fidealis-mail.example
+      - address: contact@acme-mail.example
         display_name: Philippe
-        bu: fidealis
+        bu: acme
         lang: fr
         smtp_host: ssl0.ovh.net
         imap_host: ssl0.ovh.net
-        password_env: WARM_FIDEALIS_PASSWORD
+        password_env: WARM_ACME_PASSWORD
 
 ## Utiliser
 

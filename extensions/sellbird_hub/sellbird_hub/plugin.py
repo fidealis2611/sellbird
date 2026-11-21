@@ -26,6 +26,12 @@ def _configure(parser):
     sub.add_parser("list", help="list business units")
     sub.add_parser("status", help="numbers across all business units")
     r = sub.add_parser("rules", help="rebuild a unit's email rules after editing it"); r.add_argument("id")
+    rp = sub.add_parser("report", help="write the daily Excel report (and email it with --send)")
+    rp.add_argument("--date", default=""); rp.add_argument("--send", action="store_true")
+    cp = sub.add_parser("crm-push", help="push new prospects to the CRM, skipping any company ever pushed")
+    cp.add_argument("--dry-run", action="store_true"); cp.add_argument("--limit", type=int, default=200)
+    sub.add_parser("daily", help="report + email + CRM push (what the evening schedule runs)")
+    sub.add_parser("launchd", help="print the macOS schedule file that runs `hub daily` every evening")
     n = sub.add_parser("run", help="run every business unit (or the ones named)"); n.add_argument("ids", nargs="*")
 
     def run(args):
@@ -46,6 +52,28 @@ def _configure(parser):
             elif args.action == "rules":
                 regenerate_rules(root / args.id)
                 print("rules rebuilt")
+            elif args.action == "report":
+                from datetime import date
+                from .report import send_report, write_report
+                day = date.fromisoformat(args.date) if args.date else date.today()
+                path = write_report(root, day, root / "reports")
+                print(f"wrote {path}")
+                if args.send:
+                    send_report(root, path, day)
+                    print("sent")
+            elif args.action == "crm-push":
+                from .crm import push
+                print(json.dumps(push(root, dry_run=args.dry_run, limit=args.limit)))
+            elif args.action == "daily":
+                from datetime import date
+                from .crm import push
+                from .report import send_report, write_report
+                path = write_report(root, date.today(), root / "reports")
+                send_report(root, path, date.today())
+                print(json.dumps(push(root)))
+            elif args.action == "launchd":
+                from .schedule import plist
+                print(plist(root))
             else:
                 from .supervisor import run_all
                 run_all(root, args.ids or None)
