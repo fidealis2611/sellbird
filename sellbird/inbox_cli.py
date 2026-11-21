@@ -53,7 +53,7 @@ def register(subparsers) -> None:
         p = kinds.add_parser(kind)
         p.add_argument("--address", required=True, help="The inbox's email address")
         p.add_argument("--name", default="", help="Name shown in From (default: persona.name)")
-        p.add_argument("--warmup-started", default="", type=_date, metavar="YYYY-MM-DD",
+        p.add_argument("--warmup-started", default=None, type=_date, metavar="YYYY-MM-DD",
                        help="When this inbox started warming up (leave out if established)")
         if kind == "smtp":
             p.add_argument("--smtp-host", required=True)

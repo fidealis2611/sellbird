@@ -7,10 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .envfile import load_into_environ
 from .workspace import list_bus
 
 
 def run_all(root: Path, only: list[str] | None = None) -> None:
+    load_into_environ(Path(root) / ".env")
     procs: list[tuple[str, subprocess.Popen]] = []
     for b in list_bus(root):
         if only and b["id"] not in only:

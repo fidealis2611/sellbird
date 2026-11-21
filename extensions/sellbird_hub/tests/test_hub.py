@@ -106,3 +106,39 @@ def test_crm_requires_url(tmp_path):
         crm.push(tmp_path)
     _seed(tmp_path, "acme")
     assert crm.push(tmp_path, dry_run=True)["pushed"] == 1
+
+
+def test_web_auth_keys_write_only_and_settings(tmp_path):
+    from fastapi.testclient import TestClient
+    from sellbird_hub.web import create_app, ensure_token
+    add_bu(tmp_path, "acme", **ARGS)
+    c = TestClient(create_app(tmp_path, 5600))
+    H = {"Host": "127.0.0.1:5600"}
+    assert c.get("/api/state", headers=H).status_code == 401
+    assert c.get("/api/state", headers={"Host": "evil.example"}).status_code == 403
+    A = {**H, "Authorization": "Bearer " + ensure_token(tmp_path)}
+    assert c.put("/api/keys", headers=A, json={"RESEND_API_KEY": "re_secret123"}).json()["changed"] == ["RESEND_API_KEY"]
+    assert c.put("/api/keys", headers=A, json={"EVIL": "x"}).status_code == 400
+    got = c.get("/api/settings", headers=A)
+    assert "re_secret123" not in got.text and got.json()["keys"]["RESEND_API_KEY"] is True
+    assert oct((tmp_path / ".env").stat().st_mode)[-3:] == "600"
+    assert c.put("/api/settings", headers=A, json={"crm": {"url": "https://crm.example.com/add_lead", "bogus": 1}}).status_code == 400
+    assert c.put("/api/settings", headers=A, json={"report": {"recipients": ["a@example.com"], "hour": 17}}).json()["ok"]
+    assert c.get("/api/settings", headers=A).json()["settings"]["report"]["hour"] == 17
+    st = c.get("/api/state", headers=A).json()
+    assert st["business_units"][0]["id"] == "acme" and st["business_units"][0]["mailboxes"] == []
+    assert c.get("/", headers=H).status_code == 200
+
+
+def test_mailbox_actions_validate_and_never_echo_password(tmp_path, monkeypatch):
+    from sellbird_hub import inboxes
+    seen = {}
+    def fake_run(ws, args, stdin=""):
+        seen.update(args=args, stdin=stdin); return 0, "Connected."
+    monkeypatch.setattr(inboxes, "_run", fake_run)
+    inboxes.connect_smtp(tmp_path, address="A@Example.com", name="A", smtp_host="smtp.example.com", password="p@ss")
+    assert "p@ss" not in " ".join(seen["args"]) and seen["stdin"] == "p@ss\n" and "a@example.com" in seen["args"]
+    with pytest.raises(inboxes.InboxError):
+        inboxes.connect_smtp(tmp_path, address="nope", name="", smtp_host="h", password="x")
+    with pytest.raises(inboxes.InboxError):
+        inboxes.act(tmp_path, "rm -rf", "a@example.com")

@@ -31,11 +31,15 @@ def _configure(parser):
     cp = sub.add_parser("crm-push", help="push new prospects to the CRM, skipping any company ever pushed")
     cp.add_argument("--dry-run", action="store_true"); cp.add_argument("--limit", type=int, default=200)
     sub.add_parser("daily", help="report + email + CRM push (what the evening schedule runs)")
+    dp = sub.add_parser("dashboard", help="open the Hub interface (settings, mailboxes, campaigns)")
+    dp.add_argument("--port", type=int, default=5600)
     sub.add_parser("launchd", help="print the macOS schedule file that runs `hub daily` every evening")
     n = sub.add_parser("run", help="run every business unit (or the ones named)"); n.add_argument("ids", nargs="*")
 
     def run(args):
         root = hub_root(args.root or None)
+        from .envfile import load_into_environ
+        load_into_environ(root / ".env")
         try:
             if args.action == "add":
                 ws = add_bu(root, args.id, name=args.name, tagline=args.tagline, offer=args.offer,
@@ -71,6 +75,15 @@ def _configure(parser):
                 path = write_report(root, date.today(), root / "reports")
                 send_report(root, path, date.today())
                 print(json.dumps(push(root)))
+            elif args.action == "dashboard":
+                import uvicorn
+                from .envfile import load_into_environ
+                from .web import create_app, ensure_token
+                root.mkdir(parents=True, exist_ok=True)
+                load_into_environ(root / ".env")
+                tok = ensure_token(root)
+                print(f"Open this private link in your browser:\n  http://127.0.0.1:{args.port}/#token={tok}")
+                uvicorn.run(create_app(root, args.port), host="127.0.0.1", port=args.port, log_level="warning")
             elif args.action == "launchd":
                 from .schedule import plist
                 print(plist(root))

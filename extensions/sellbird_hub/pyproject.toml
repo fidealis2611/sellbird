@@ -8,10 +8,13 @@ version = "0.1.0"
 description = "Hub for Sellbird: one workspace per business unit, language by country, messages by company size, aggregated status."
 requires-python = ">=3.11"
 license = "AGPL-3.0-only"
-dependencies = ["sellbird", "pyyaml>=6.0.1,<7", "openpyxl>=3.1", "httpx>=0.27"]
+dependencies = ["sellbird", "pyyaml>=6.0.1,<7", "openpyxl>=3.1", "httpx>=0.27", "fastapi>=0.110", "uvicorn>=0.29"]
 
 [project.entry-points."sellbird.extensions"]
 hub = "sellbird_hub.plugin:install"
 
 [tool.setuptools]
 packages = ["sellbird_hub"]
+
+[tool.setuptools.package-data]
+sellbird_hub = ["hub.html"]

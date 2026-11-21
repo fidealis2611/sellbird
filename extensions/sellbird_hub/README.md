@@ -27,4 +27,5 @@ Mettre RESEND_API_KEY et CRM_TOKEN dans le .env du dossier sellbird.
     sellbird hub report --send       rapport Excel du jour, envoye par email
     sellbird hub crm-push --dry-run  voir ce qui partirait au CRM
     sellbird hub daily               rapport + email + CRM (a lancer chaque soir)
+    sellbird hub dashboard           interface Hub (cles, boites SMTP, CRM, rapport, boites par campagne)
     sellbird hub launchd             fichier de planification macOS

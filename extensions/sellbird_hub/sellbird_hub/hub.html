@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sellbird Hub</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14161a;--mut:#667085;--line:#e3e6ea;--acc:#2f5bea;--ok:#15803d;--bad:#b91c1c;--warn:#b45309}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a20;--tx:#e8eaee;--mut:#98a2b3;--line:#262b33;--acc:#6d8dff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif}
+header{display:flex;gap:6px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+header b{margin-right:16px}nav button{background:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--mut);font:inherit}
+nav button.on{background:var(--bg);color:var(--tx);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{margin:0 0 4px;font-size:16px}.sub{color:var(--mut);margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+button.b{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--tx);cursor:pointer;font:inherit}
+button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+.tag{padding:2px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line)}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.msg{margin-top:8px;color:var(--mut);white-space:pre-wrap}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style></head><body>
+<header><b>Sellbird Hub</b><nav id="nav"></nav></header><main id="v">Chargement</main>
+<script>
+const KEY='sellbird-hub-token';
+(function(){const m=location.hash.match(/token=([^&]+)/);if(m){sessionStorage.setItem(KEY,decodeURIComponent(m[1]));history.replaceState(null,'',location.pathname)}})();
+const api=(p,o={})=>fetch(p,{...o,headers:{'Authorization':'Bearer '+(sessionStorage.getItem(KEY)||''),'Content-Type':'application/json'},body:o.body&&JSON.stringify(o.body)}).then(async r=>{const j=await r.json().catch(()=>({}));if(r.status===401)throw new Error('Ouvre le lien affiche par sellbird hub dashboard');return j});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let tab='bu',S=null,CFG=null;
+const TABS=[['bu','Business units'],['camp','Campagnes'],['set','Parametrages']];
+function nav(){document.getElementById('nav').innerHTML=TABS.map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}</button>`).join('');document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()})}
+async function load(){S=await api('/api/state');CFG=await api('/api/settings')}
+function say(id,j){const e=document.getElementById(id);if(e)e.textContent=(j.ok?'OK. ':'Erreur. ')+(j.message||'')}
+function viewBU(){return S.business_units.map(b=>`<div class="card"><h2>${esc(b.name)}</h2><div class="sub">${esc((b.countries||[]).join(', '))}</div>
+<div class="g"><div>Prospects<br><b>${b.prospects}</b></div><div>Envoyes<br><b>${b.sent}</b></div><div>A valider<br><b>${b.pending}</b></div><div>Conversations<br><b>${b.open_conversations}</b></div></div></div>`).join('')||'<div class="card">Aucune business unit. Cree-en une dans Parametrages.</div>'}
+function viewCamp(){return S.business_units.map(b=>`<div class="card"><h2>${esc(b.name)}</h2><div class="sub">Boites d'expedition de chaque campagne. Aucune cochee : toutes les boites de la BU.</div>
+${b.campaigns.length?`<table><tr><th>Campagne</th><th>Etat</th><th>Boites d'expedition</th><th></th></tr>${b.campaigns.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.status)}</td><td>${b.mailboxes.map(m=>`<label class="row" style="margin:2px 0"><input type="checkbox" style="width:auto" data-c="${esc(c.id)}" value="${esc(m.address)}" ${c.mailboxes.includes(m.address)?'checked':''}> ${esc(m.address)}</label>`).join('')||'<span class="warn">Aucune boite connectee</span>'}</td><td><button class="b p" data-save="${esc(b.id)}|${esc(c.id)}">Enregistrer</button></td></tr>`).join('')}</table>`:'<div class="sub">Pas encore de campagne.</div>'}<div class="msg" id="m-${esc(b.id)}"></div></div>`).join('')}
+function viewSet(){const keys=CFG.keys,s=CFG.settings;
+return `<div class="card"><h2>Cles</h2><div class="sub">Ecriture seule : une cle enregistree n'est jamais reaffichee. Laisser vide = ne pas changer.</div><div class="g">${Object.entries(keys).map(([k,on])=>`<div><label>${k} <span class="tag ${on?'ok':'warn'}">${on?'definie':'absente'}</span></label><input type="password" autocomplete="off" data-k="${k}" placeholder="${on?'laisser vide':'coller la cle'}"></div>`).join('')}</div><p><button class="b p" id="sk">Enregistrer les cles</button></p><div class="msg" id="mk"></div></div>
+<div class="card"><h2>Rapport quotidien</h2><div class="g"><div><label>Destinataires (separes par des virgules)</label><input id="r-to" value="${esc(s.report.recipients.join(', '))}"></div><div><label>Expediteur (domaine Resend)</label><input id="r-from" value="${esc(s.report.from)}"></div><div><label>Heure d'envoi</label><input id="r-h" type="number" min="0" max="23" value="${s.report.hour}"></div></div></div>
+<div class="card"><h2>CRM</h2><div class="g"><div><label>Adresse de add_lead</label><input id="c-url" value="${esc(s.crm.url)}"></div><div><label>Nom de la variable du jeton</label><input id="c-tok" value="${esc(s.crm.token_env)}"></div><div><label>agent_ID par defaut</label><input id="c-agent" value="${esc(s.crm.default_agent_id)}"></div></div><p><button class="b p" id="ss">Enregistrer rapport et CRM</button></p><div class="msg" id="ms"></div></div>
+${S.business_units.map(b=>`<div class="card"><h2>Boites d'envoi : ${esc(b.name)}</h2>
+<table><tr><th>Adresse</th><th>Etat</th><th></th></tr>${b.mailboxes.map(m=>`<tr><td>${esc(m.address)}</td><td>${esc(m.state)}${m.paused_reason?' : '+esc(m.paused_reason):''}</td><td class="row">${['test','pause','resume','remove'].map(a=>`<button class="b" data-ma="${esc(b.id)}|${esc(m.address)}|${a}">${{test:'Tester',pause:'Pause',resume:'Reprendre',remove:'Retirer'}[a]}</button>`).join('')}</td></tr>`).join('')||'<tr><td colspan="3" class="sub">Aucune boite supplementaire.</td></tr>'}</table>
+<h2 style="margin-top:14px;font-size:14px">Ajouter une boite SMTP/IMAP</h2><div class="g" data-nb="${esc(b.id)}">
+${[['address','Adresse'],['name','Nom affiche'],['smtp_host','Serveur SMTP'],['smtp_port','Port SMTP','587'],['username','Identifiant (vide = adresse)'],['imap_host','Serveur IMAP (vide = SMTP)'],['imap_port','Port IMAP','993'],['password','Mot de passe','','password'],['warmup_started','Debut echauffement (AAAA-MM-JJ, vide si deja chaude)']].map(([k,l,d,t])=>`<div><label>${l}</label><input data-f="${k}" type="${t||'text'}" autocomplete="off" value="${d||''}"></div>`).join('')}</div>
+<p><button class="b p" data-conn="${esc(b.id)}">Connecter la boite</button></p><div class="msg" id="mb-${esc(b.id)}"></div></div>`).join('')}
+<div class="card"><h2>Nouvelle business unit</h2><div class="g" id="nbu">${[['id','Identifiant (minuscules)'],['name','Nom'],['tagline','Ce qu elle vend, une phrase'],['offer','Offre gratuite du premier email'],['from_name','Nom expediteur'],['from_email','Email expediteur'],['countries','Pays (virgules)'],['booking_url','Lien de rendez-vous']].map(([k,l])=>`<div><label>${l}</label><input data-f="${k}"></div>`).join('')}</div><p><button class="b p" id="nb">Creer la business unit</button></p><div class="msg" id="mn"></div></div>`}
+function wire(){
+ document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{const[bu,c]=b.dataset.save.split('|');const a=[...document.querySelectorAll(`input[data-c="${c}"]:checked`)].map(i=>i.value);say('m-'+bu,await api(`/api/bu/${bu}/campaigns/${encodeURIComponent(c)}/mailboxes`,{method:'PUT',body:{addresses:a}}));await load()});
+ const sk=document.getElementById('sk');if(sk)sk.onclick=async()=>{const u={};document.querySelectorAll('[data-k]').forEach(i=>{if(i.value)u[i.dataset.k]=i.value});say('mk',await api('/api/keys',{method:'PUT',body:u}));await load();render()};
+ const ss=document.getElementById('ss');if(ss)ss.onclick=async()=>{const v=id=>document.getElementById(id).value;say('ms',await api('/api/settings',{method:'PUT',body:{report:{recipients:v('r-to').split(',').map(x=>x.trim()).filter(Boolean),from:v('r-from'),hour:+v('r-h')},crm:{url:v('c-url'),token_env:v('c-tok'),default_agent_id:v('c-agent')}}}))};
+ document.querySelectorAll('[data-conn]').forEach(b=>b.onclick=async()=>{const bu=b.dataset.conn,d={};document.querySelectorAll(`[data-nb="${bu}"] [data-f]`).forEach(i=>{d[i.dataset.f]=i.value});d.smtp_port=+d.smtp_port||587;d.imap_port=+d.imap_port||993;const j=await api(`/api/bu/${bu}/mailboxes`,{method:'POST',body:d});say('mb-'+bu,j);document.querySelectorAll(`[data-nb="${bu}"] [data-f="password"]`).forEach(i=>i.value='');if(j.ok){await load();render()}});
+ document.querySelectorAll('[data-ma]').forEach(b=>b.onclick=async()=>{const[bu,a,act]=b.dataset.ma.split('|');const j=await api(`/api/bu/${bu}/mailboxes/${encodeURIComponent(a)}/${act}`,{method:'POST',body:{}});alert((j.ok?'OK\n':'Erreur\n')+(j.message||''));await load();render()});
+ const nb=document.getElementById('nb');if(nb)nb.onclick=async()=>{const d={};document.querySelectorAll('#nbu [data-f]').forEach(i=>{d[i.dataset.f]=i.value});d.countries=d.countries.split(',').map(x=>x.trim()).filter(Boolean);const j=await api('/api/bu',{method:'POST',body:d});say('mn',j);if(j.ok){await load();render()}};
+}
+function render(){nav();document.getElementById('v').innerHTML={bu:viewBU,camp:viewCamp,set:viewSet}[tab]();wire()}
+load().then(render).catch(e=>{document.getElementById('v').textContent=e.message});
+</script></body></html>
